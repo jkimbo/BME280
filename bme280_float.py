@@ -43,6 +43,7 @@
 import time
 from ustruct import unpack, unpack_from
 from array import array
+import math
 
 # BME280 default address.
 BME280_I2CADDR = 0x76
@@ -109,6 +110,17 @@ class BME280:
         self.i2c.writeto_mem(self.address, BME280_REGISTER_CONTROL,
                              self._l1_barray)
         self.t_fine = 0
+        self.offset_temp_in_t_fine = 0
+
+    def set_temperature_offset(self, value):
+        """Set temperature offset in celsius
+        If set, the temperature t_fine will be increased by given value in celsius.
+        :param value: Temperature offset in Celsius, eg. 4, -8, 1.25
+        """
+        if value == 0:
+            self.offset_temp_in_t_fine = 0
+        else:
+            self.offset_temp_in_t_fine = int(math.copysign((((int(abs(value) * 100)) << 8) - 128) / 5, value))
 
     def read_raw_data(self, result):
         """ Reads the raw (uncompensated) data from the sensor.
@@ -168,7 +180,7 @@ class BME280:
         var1 = (raw_temp/16384.0 - self.dig_T1/1024.0) * self.dig_T2
         var2 = raw_temp/131072.0 - self.dig_T1/8192.0
         var2 = var2 * var2 * self.dig_T3
-        self.t_fine = int(var1 + var2)
+        self.t_fine = int(var1 + var2) + self.offset_temp_in_t_fine
         temp = (var1 + var2) / 5120.0
         temp = max(-40, min(85, temp))
 
