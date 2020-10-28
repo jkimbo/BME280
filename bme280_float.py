@@ -41,7 +41,7 @@
 #
 
 import time
-from ustruct import unpack, unpack_from
+from ustruct import unpack
 from array import array
 import math
 
@@ -65,24 +65,26 @@ MODE_NORMAL = const(3)
 
 BME280_TIMEOUT = const(100)  # about 1 second timeout
 
-class BME280:
 
-    def __init__(self,
-                 mode=BME280_OSAMPLE_8,
-                 address=BME280_I2CADDR,
-                 i2c=None,
-                 **kwargs):
+class BME280:
+    def __init__(self, mode=BME280_OSAMPLE_8, address=BME280_I2CADDR, i2c=None):
         # Check that mode is valid.
-        if mode not in [BME280_OSAMPLE_1, BME280_OSAMPLE_2, BME280_OSAMPLE_4,
-                        BME280_OSAMPLE_8, BME280_OSAMPLE_16]:
+        if mode not in [
+            BME280_OSAMPLE_1,
+            BME280_OSAMPLE_2,
+            BME280_OSAMPLE_4,
+            BME280_OSAMPLE_8,
+            BME280_OSAMPLE_16,
+        ]:
             raise ValueError(
-                'Unexpected mode value {0}. Set mode to one of '
-                'BME280_OSAMPLE_1, BME280_OSAMPLE_2, BME280_OSAMPLE_4,'
-                'BME280_OSAMPLE_8, BME280_OSAMPLE_16'.format(mode))
+                "Unexpected mode value {0}. Set mode to one of "
+                "BME280_OSAMPLE_1, BME280_OSAMPLE_2, BME280_OSAMPLE_4,"
+                "BME280_OSAMPLE_8, BME280_OSAMPLE_16".format(mode)
+            )
         self._mode = mode
         self.address = address
         if i2c is None:
-            raise ValueError('An I2C object is required.')
+            raise ValueError("An I2C object is required.")
         self.i2c = i2c
         self.__sealevel = 101325
 
@@ -90,13 +92,26 @@ class BME280:
         dig_88_a1 = self.i2c.readfrom_mem(self.address, 0x88, 26)
         dig_e1_e7 = self.i2c.readfrom_mem(self.address, 0xE1, 7)
 
-        self.dig_T1, self.dig_T2, self.dig_T3, self.dig_P1, \
-            self.dig_P2, self.dig_P3, self.dig_P4, self.dig_P5, \
-            self.dig_P6, self.dig_P7, self.dig_P8, self.dig_P9, \
-            _, self.dig_H1 = unpack("<HhhHhhhhhhhhBB", dig_88_a1)
+        (
+            self.dig_T1,
+            self.dig_T2,
+            self.dig_T3,
+            self.dig_P1,
+            self.dig_P2,
+            self.dig_P3,
+            self.dig_P4,
+            self.dig_P5,
+            self.dig_P6,
+            self.dig_P7,
+            self.dig_P8,
+            self.dig_P9,
+            _,
+            self.dig_H1,
+        ) = unpack("<HhhHhhhhhhhhBB", dig_88_a1)
 
-        self.dig_H2, self.dig_H3, self.dig_H4,\
-            self.dig_H5, self.dig_H6 = unpack("<hBbhb", dig_e1_e7)
+        self.dig_H2, self.dig_H3, self.dig_H4, self.dig_H5, self.dig_H6 = unpack(
+            "<hBbhb", dig_e1_e7
+        )
         # unfold H4, H5, keeping care of a potential sign
         self.dig_H4 = (self.dig_H4 * 16) + (self.dig_H5 & 0xF)
         self.dig_H5 //= 16
@@ -107,8 +122,7 @@ class BME280:
         self._l3_resultarray = array("i", [0, 0, 0])
 
         self._l1_barray[0] = self._mode << 5 | self._mode << 2 | MODE_SLEEP
-        self.i2c.writeto_mem(self.address, BME280_REGISTER_CONTROL,
-                             self._l1_barray)
+        self.i2c.writeto_mem(self.address, BME280_REGISTER_CONTROL, self._l1_barray)
         self.t_fine = 0
         self.offset_temp_in_t_fine = 0
 
@@ -120,10 +134,12 @@ class BME280:
         if value == 0:
             self.offset_temp_in_t_fine = 0
         else:
-            self.offset_temp_in_t_fine = int(math.copysign((((int(abs(value) * 100)) << 8) - 128) / 5, value))
+            self.offset_temp_in_t_fine = int(
+                math.copysign((((int(abs(value) * 100)) << 8) - 128) / 5, value)
+            )
 
     def read_raw_data(self, result):
-        """ Reads the raw (uncompensated) data from the sensor.
+        """Reads the raw (uncompensated) data from the sensor.
 
             Args:
                 result: array of length 3 or alike where the result will be
@@ -133,11 +149,9 @@ class BME280:
         """
 
         self._l1_barray[0] = self._mode
-        self.i2c.writeto_mem(self.address, BME280_REGISTER_CONTROL_HUM,
-                             self._l1_barray)
+        self.i2c.writeto_mem(self.address, BME280_REGISTER_CONTROL_HUM, self._l1_barray)
         self._l1_barray[0] = self._mode << 5 | self._mode << 2 | MODE_FORCED
-        self.i2c.writeto_mem(self.address, BME280_REGISTER_CONTROL,
-                             self._l1_barray)
+        self.i2c.writeto_mem(self.address, BME280_REGISTER_CONTROL, self._l1_barray)
 
         # Wait for conversion to complete
         for _ in range(BME280_TIMEOUT):
@@ -177,20 +191,20 @@ class BME280:
         self.read_raw_data(self._l3_resultarray)
         raw_temp, raw_press, raw_hum = self._l3_resultarray
         # temperature
-        var1 = (raw_temp/16384.0 - self.dig_T1/1024.0) * self.dig_T2
-        var2 = raw_temp/131072.0 - self.dig_T1/8192.0
+        var1 = (raw_temp / 16384.0 - self.dig_T1 / 1024.0) * self.dig_T2
+        var2 = raw_temp / 131072.0 - self.dig_T1 / 8192.0
         var2 = var2 * var2 * self.dig_T3
         self.t_fine = int(var1 + var2) + self.offset_temp_in_t_fine
-        temp = (var1 + var2) / 5120.0
+        temp = self.t_fine / 5120.0
         temp = max(-40, min(85, temp))
 
         # pressure
-        var1 = (self.t_fine/2.0) - 64000.0
+        var1 = (self.t_fine / 2.0) - 64000.0
         var2 = var1 * var1 * self.dig_P6 / 32768.0 + var1 * self.dig_P5 * 2.0
         var2 = (var2 / 4.0) + (self.dig_P4 * 65536.0)
         var1 = (self.dig_P3 * var1 * var1 / 524288.0 + self.dig_P2 * var1) / 524288.0
         var1 = (1.0 + var1 / 32768.0) * self.dig_P1
-        if (var1 == 0.0):
+        if var1 == 0.0:
             pressure = 30000  # avoid exception caused by division by zero
         else:
             p = ((1048576.0 - raw_press) - (var2 / 4096.0)) * 6250.0 / var1
@@ -200,10 +214,15 @@ class BME280:
             pressure = max(30000, min(110000, pressure))
 
         # humidity
-        h = (self.t_fine - 76800.0)
-        h = ((raw_hum - (self.dig_H4 * 64.0 + self.dig_H5 / 16384.0 * h)) *
-             (self.dig_H2 / 65536.0 * (1.0 + self.dig_H6 / 67108864.0 * h *
-                                       (1.0 + self.dig_H3 / 67108864.0 * h))))
+        h = self.t_fine - 76800.0
+        h = (raw_hum - (self.dig_H4 * 64.0 + self.dig_H5 / 16384.0 * h)) * (
+            self.dig_H2
+            / 65536.0
+            * (
+                1.0
+                + self.dig_H6 / 67108864.0 * h * (1.0 + self.dig_H3 / 67108864.0 * h)
+            )
+        )
         humidity = h * (1.0 - self.dig_H1 * h / 524288.0)
         # humidity = max(0, min(100, humidity))
 
@@ -226,13 +245,15 @@ class BME280:
 
     @property
     def altitude(self):
-        '''
+        """
         Altitude in m.
-        '''
+        """
         from math import pow
+
         try:
-            p = 44330 * (1.0 - pow(self.read_compensated_data()[1] /
-                                   self.__sealevel, 0.1903))
+            p = 44330 * (
+                1.0 - pow(self.read_compensated_data()[1] / self.__sealevel, 0.1903)
+            )
         except:
             p = 0.0
         return p
@@ -244,6 +265,7 @@ class BME280:
         and Humidity measured pair
         """
         from math import log
+
         t, p, h = self.read_compensated_data()
         h = (log(h, 10) - 2) / 0.4343 + (17.62 * t) / (243.12 + t)
         return 243.12 * h / (17.62 - h)
@@ -254,5 +276,4 @@ class BME280:
 
         t, p, h = self.read_compensated_data()
 
-        return ("{:.2f}C".format(t), "{:.2f}hPa".format(p/100),
-                "{:.2f}%".format(h))
+        return ("{:.2f}C".format(t), "{:.2f}hPa".format(p / 100), "{:.2f}%".format(h))
